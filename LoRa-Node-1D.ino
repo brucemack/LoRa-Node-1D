@@ -40,15 +40,15 @@ int codingRate = 5;
 int address = 0xf3;
 
 void configRadio(RH_RF95& radio) {
+  //radio.setModemConfig(RH_RF95::ModemConfigChoice::Bw125Cr48Sf4096);
   radio.setFrequency(frequency);
-  radio.setModemConfig(RH_RF95::ModemConfigChoice::Bw125Cr48Sf4096);
   radio.setTxPower(txPower);
   // Adjust over-current protection
-  radio.spiWrite(RH_RF95_REG_0B_OCP, 0x31);
+  //radio.spiWrite(RH_RF95_REG_0B_OCP, 0x31);
   //radio.setSpreadingFactor(spreadingFactor);
   //radio.setSignalBandwidth(signalBandwidth);
   //radio.setCodingRate4(codingRate);
-  radio.setThisAddress(address);
+  //radio.setThisAddress(address);
 }
 
 int counter = 0;
@@ -59,7 +59,7 @@ void setup() {
   
   /* Done so that the Arduino doesn't keep resetting infinitely in 
      case of a wrong configuration */
-  delay(1000); 
+  delay(3000); 
   // Turn on the watch dog 
   //wdt_enable(WDTO_2S);
 
@@ -78,15 +78,11 @@ void setup() {
   // Per datasheet, wait for 5ms!
   delay(5);
 
-  if (!rf95.init()) {
-    Serial.println("driver init failed");
+  if (!mesh_manager.init()) {
+    Serial.println("LoRa init failed");
   } else {
-    configRadio(rf95);  
-    if (!mesh_manager.init()) {
-      Serial.println("manager init failed");
-    } else {
-      Serial.println("LoRa Initializing OK!");
-    }
+    configRadio(rf95);
+    Serial.println("LoRa Initializing OK!");
   }
   
   // Turn off WIFI and BlueTooth to reduce power 
