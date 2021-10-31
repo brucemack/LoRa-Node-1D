@@ -25,14 +25,14 @@ static const char CALL[9] = "KC1FSZ  ";
 
 // Watchdog timeout in seconds (NOTE: I think this time might be off because
 // we are changing the CPU clock frequency)
-#define WDT_TIMEOUT 10
+#define WDT_TIMEOUT 30
 
 RH_RF95 rf95(ss, dio0);
 RHMesh mesh_manager(rf95, MY_NODE_ADDR);
 
 // Channel configurations
 //float frequency = 434;
-float frequency = 915;
+float frequency = 916;
 // Transmit power in dBm
 int txPower = 20;
 // Higher spreading factor for longer distance
@@ -69,7 +69,7 @@ void setup() {
   delay(3000); 
 
   // Slow down ESP32 to 10 MHz in order to reduce battery consumption
-  //setCpuFrequencyMhz(10);
+  setCpuFrequencyMhz(10);
 
   // Initialize serial monitor
   Serial.begin(115200);
@@ -122,7 +122,7 @@ long sendInterval = 10000;
 void send_1() {
 
     uint16_t num = 7;
-    char *msg = "Hello World!";
+    char *msg = "Hello World                                          !";
 
     // Build the paket
     uint8_t data[64];
@@ -176,23 +176,28 @@ void loop() {
     for (int i = 0; i < 16; i++)
       data[10 + i] = 0;
     sprintf((char*)(data + 10),"KC1FSZ %d", counter);
-    
+
+    unsigned long startMs = millis();
     uint8_t rc = mesh_manager.sendtoWait(data, 26, 3);
+    unsigned long stopMs = millis();
     if (rc == RH_ROUTER_ERROR_NONE) {    
-      Serial.println("OK");  
+      Serial.print("OK ");  
     } else if (rc == RH_ROUTER_ERROR_NO_ROUTE) {
-      Serial.println("NR");
+      Serial.print("NR ");
     } else if (rc == RH_ROUTER_ERROR_UNABLE_TO_DELIVER) {
-      Serial.println("UTD");
+      Serial.print("UTD ");
     }
+    Serial.println((stopMs - startMs));
 
     // GET THE RESPONSE
     uint8_t rec_data[32];
     uint8_t rec_len = 32;
     uint8_t rec_source = 0;
     uint16_t rec_timeout = 4000;
-    
+
+    startMs = millis();
     if (mesh_manager.recvfromAckTimeout(rec_data, &rec_len, rec_timeout, &rec_source)) {
+      stopMs = millis();
 
       int16_t last_rssi = (int)rf95.lastRssi();
       
@@ -216,10 +221,12 @@ void loop() {
           Serial.print(last_rssi, DEC);
           Serial.print(", Remote RSSI ");
           Serial.print(rssi, DEC);
-          Serial.print(", ");
+          Serial.print(", battery ");
           Serial.print(battery, DEC);
-          Serial.print(", ");
+          Serial.print(", uptime ");
           Serial.print(uptime_seconds, DEC);
+          Serial.print(", ms ");
+          Serial.print((stopMs - startMs), DEC);
           Serial.print(", ");
           Serial.println((const char*)&(rec_data[20]));
 
