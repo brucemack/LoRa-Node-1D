@@ -8,10 +8,12 @@
 #include <esp_task_wdt.h>
 
 //define the pins used by the transceiver module
-// ESP32
+// ESP32 Pins
 #define ss 5
 #define rst 14
-#define dio0 2
+// This pin has an on-board LED
+//#define dio0 2
+#define dio0 4
 
 // Arduino Pro Mini
 //#define ss 10
@@ -20,6 +22,10 @@
 
 #define MY_NODE_ADDR 2
 static const char CALL[9] = "KC1FSZ  ";
+
+// Watchdog timeout in seconds (NOTE: I think this time might be off because
+// we are changing the CPU clock frequency)
+#define WDT_TIMEOUT 10
 
 RH_RF95 rf95(ss, dio0);
 RHMesh mesh_manager(rf95, MY_NODE_ADDR);
@@ -30,10 +36,11 @@ float frequency = 915;
 // Transmit power in dBm
 int txPower = 20;
 // Higher spreading factor for longer distance
-int spreadingFactor = 12;
+int spreadingFactor = 9;
 // Setup BandWidth, option: 7800,10400,15600,20800,31250,41700,62500,125000,250000,500000
 // Lower BandWidth for longer distance.
-long signalBandwidth = 125000;
+//long signalBandwidth = 125000;
+long signalBandwidth = 31250;
 // Setup Coding Rate:5(4/5),6(4/6),7(4/7),8(4/8) 
 int codingRate = 5;
 // Address
@@ -43,9 +50,9 @@ void configRadio(RH_RF95& radio) {
   //radio.setModemConfig(RH_RF95::ModemConfigChoice::Bw125Cr48Sf4096);
   radio.setFrequency(frequency);
   radio.setTxPower(txPower);
+  radio.setSpreadingFactor(spreadingFactor);
   // Adjust over-current protection
-  //radio.spiWrite(RH_RF95_REG_0B_OCP, 0x31);
-  //radio.setSpreadingFactor(spreadingFactor);
+  radio.spiWrite(RH_RF95_REG_0B_OCP, 0x31);
   //radio.setSignalBandwidth(signalBandwidth);
   //radio.setCodingRate4(codingRate);
   //radio.setThisAddress(address);
@@ -60,13 +67,20 @@ void setup() {
   /* Done so that the Arduino doesn't keep resetting infinitely in 
      case of a wrong configuration */
   delay(3000); 
-  // Turn on the watch dog 
-  //wdt_enable(WDTO_2S);
+
+  // Slow down ESP32 to 10 MHz in order to reduce battery consumption
+  //setCpuFrequencyMhz(10);
 
   // Initialize serial monitor
   Serial.begin(115200);
   //delay(1000); 
   Serial.println("Node 1");
+
+  // LED
+  pinMode(2, OUTPUT);
+  pinMode(21, OUTPUT);
+  digitalWrite(2, LOW);
+  digitalWrite(21, LOW);
 
   // Reset the radio 
   pinMode(rst, OUTPUT);
@@ -83,11 +97,23 @@ void setup() {
   } else {
     configRadio(rf95);
     Serial.println("LoRa Initializing OK!");
+    digitalWrite(2, HIGH);
+    delay(200);
+    digitalWrite(2, LOW);
+    delay(200);
+    digitalWrite(2, HIGH);
+    delay(200);
+    digitalWrite(2, LOW);
   }
   
   // Turn off WIFI and BlueTooth to reduce power 
   WiFi.mode(WIFI_OFF);
   btStop();
+
+  // Enable the watchdog timer
+  esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+  esp_task_wdt_add(NULL); //add current thread to WDT watch
+  esp_task_wdt_reset();
 }
 
 long lastSend = 0;
@@ -127,7 +153,8 @@ void send_1() {
 
 void loop() {
 
-  //wdt_reset();  /* Reset the watchdog */
+  // Keep the watchdog fed
+  esp_task_wdt_reset();
 
   if ((millis() - lastSend) > sendInterval) {
 
@@ -195,6 +222,10 @@ void loop() {
           Serial.print(uptime_seconds, DEC);
           Serial.print(", ");
           Serial.println((const char*)&(rec_data[20]));
+
+          digitalWrite(21, HIGH);
+          delay(300);
+          digitalWrite(21, LOW);
         } else {
           Serial.println(F("Length error"));
         }
@@ -205,4 +236,5 @@ void loop() {
 
     counter++;
   }
+  
 }
