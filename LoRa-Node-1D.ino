@@ -25,7 +25,7 @@ static const char CALL[9] = "KC1FSZ  ";
 
 // Watchdog timeout in seconds (NOTE: I think this time might be off because
 // we are changing the CPU clock frequency)
-#define WDT_TIMEOUT 30
+#define WDT_TIMEOUT 5
 
 RH_RF95 rf95(ss, dio0);
 RHMesh mesh_manager(rf95, MY_NODE_ADDR);
@@ -122,7 +122,7 @@ long sendInterval = 10000;
 void send_1() {
 
     uint16_t num = 7;
-    char *msg = "Hello World                                          !";
+    char *msg = "Hello World!";
 
     // Build the paket
     uint8_t data[64];
@@ -158,6 +158,13 @@ void loop() {
 
   if ((millis() - lastSend) > sendInterval) {
 
+    // Make sure the radio is responsive
+    Serial.println("Checking version");
+    uint8_t radioVersion = rf95.getDeviceVersion();
+    Serial.print("Vesion ");
+    Serial.println(radioVersion);
+    
+
     lastSend = millis();
     //int batteryLevel = analogRead(A0);
     
@@ -186,12 +193,14 @@ void loop() {
       Serial.print("NR ");
     } else if (rc == RH_ROUTER_ERROR_UNABLE_TO_DELIVER) {
       Serial.print("UTD ");
+    } else {
+      Serial.print("OTHER ");
     }
     Serial.println((stopMs - startMs));
 
     // GET THE RESPONSE
-    uint8_t rec_data[32];
-    uint8_t rec_len = 32;
+    uint8_t rec_data[40];
+    uint8_t rec_len = 40;
     uint8_t rec_source = 0;
     uint16_t rec_timeout = 4000;
 
@@ -202,7 +211,7 @@ void loop() {
       int16_t last_rssi = (int)rf95.lastRssi();
       
       if (rec_data[1] == 2) {
-        if (rec_len >= 32) {
+        if (rec_len >= 40) {
 
           int16_t counter = rec_data[10] << 8;
           counter |= rec_data[11];
@@ -214,6 +223,10 @@ void loop() {
           uptime_seconds |= rec_data[17] << 16;
           uptime_seconds |= rec_data[18] << 8;
           uptime_seconds |= rec_data[19];
+          uint16_t bootCount = rec_data[20] << 8;
+          bootCount |= rec_data[21];
+          uint16_t sleepCount = rec_data[22] << 8;
+          sleepCount |= rec_data[23];
              
           Serial.print("Count ");
           Serial.print(counter, DEC);
@@ -227,14 +240,19 @@ void loop() {
           Serial.print(uptime_seconds, DEC);
           Serial.print(", ms ");
           Serial.print((stopMs - startMs), DEC);
+          Serial.print(", boots ");
+          Serial.print(bootCount, DEC);
+          Serial.print(", sleeps ");
+          Serial.print(sleepCount, DEC);
           Serial.print(", ");
-          Serial.println((const char*)&(rec_data[20]));
+          Serial.println((const char*)&(rec_data[24]));
 
           digitalWrite(21, HIGH);
           delay(300);
           digitalWrite(21, LOW);
         } else {
           Serial.println(F("Length error"));
+          Serial.println(rec_len);
         }
       } else {
         Serial.println(F("Unrecognized command"));
